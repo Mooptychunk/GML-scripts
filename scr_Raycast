@@ -1,0 +1,188 @@
+function scr_Raycast(r, dof, ray_x, ray_y, ray_angle, x_offset, y_offset, vcone){
+	
+	var one_radian = degtorad(1);
+	var angle_diff = one_radian/4; //Angle increases by a small amount of radians
+	var radian_ray_angle = degtorad(floor(ray_angle)) + one_radian* (vcone/8);
+	
+	var ray_dist = 0;
+	
+	if radian_ray_angle < 0 { radian_ray_angle += 2*pi; }
+	if radian_ray_angle > 2*pi { radian_ray_angle -= 2*pi; }
+	
+	var solid_hit = noone;
+	
+	//Rays shoot out in a cone
+	for(r=0; r<vcone; r++) {
+		dof = 0;
+		var aTan=1/tan(radian_ray_angle);
+		
+		//Check Horizontal Grid Lines
+		if radian_ray_angle < pi { //Looking Up
+			ray_y = (y>>6)<<6; //Round to nearest 64th value
+			ray_x = (y - ray_y) * aTan + x; //MATH
+			
+			y_offset = -64; //Looking up, so jumps 64 pixels up
+			x_offset = -y_offset*aTan; //More Math
+		}
+		if radian_ray_angle > pi { //Looking Down - Same shit as above basically
+			ray_y = ( (y>>6)<<6 ) + 64;
+			ray_x = (y - ray_y) * aTan + x;
+			
+			y_offset = 64;
+			x_offset = -y_offset*aTan;
+		}
+		
+		while (dof<8) {
+			if position_meeting(ray_x, ray_y + sign(y_offset), obj_SOLID)
+			{
+				dof = 8;
+			}
+			else {
+				ray_x += x_offset;
+				ray_y += y_offset;
+				dof += 1;
+			}
+		}
+		
+		//Horizontal Ray Distance
+		var hray_x = ray_x;
+		var hray_y = ray_y;
+		var hray_dist = distance_to_point(hray_x, hray_y);
+		
+		//Draw Horizontal ray
+		//draw_set_color(c_red);
+		//draw_line_width(x, y, ray_x, ray_y, 4);
+		
+		//Check Vertical Grid Lines
+		dof = 0;
+		var nTan=tan(radian_ray_angle); //Negative Tangent
+		
+		if radian_ray_angle > pi/2 && radian_ray_angle < 3*(pi/2) { //Looking Left
+			ray_x = (x>>6)<<6; //Round to nearest 64th value
+			ray_y = (x - ray_x) * nTan + y; //MATH
+			
+			x_offset = -64; //Looking up, so jumps 64 pixels up
+			y_offset = -x_offset*nTan; //More Math
+		}
+		if radian_ray_angle < pi/2 || radian_ray_angle > 3*(pi/2) { //Looking Right - Same shit as above basically
+			ray_x = ( (x>>6)<<6 ) + 64;
+			ray_y = (x - ray_x) * nTan + y;
+			
+			x_offset = 64;
+			y_offset = -x_offset*nTan;
+		}
+		
+		while (dof<8) {
+			if position_meeting(ray_x + sign(x_offset), ray_y, obj_SOLID)
+			{
+				dof = 8;
+			}
+			else {
+				ray_x += x_offset;
+				ray_y += y_offset;
+				dof += 1;
+			}
+		}
+		
+		//Vertical Ray Distance
+		var vray_x = ray_x;
+		var vray_y = ray_y;
+		var vray_dist = distance_to_point(vray_x, vray_y);
+		
+		//Draw Vertical ray
+		//draw_set_color(c_green);
+		//draw_line_width(x, y, ray_x, ray_y, 2);
+		
+		//Draw shortest Ray
+		var wall_color = c_red;
+		var wall_shade = 1;
+		
+		if vray_dist < hray_dist {
+			draw_set_color(c_green);
+			//draw_line_width(x, y, vray_x, vray_y, 2);
+			
+			ray_x = vray_x;
+			ray_y = vray_y;
+			
+			ray_dist = vray_dist;
+			wall_color = c_fuchsia;
+			wall_shade = 1;
+		}
+		if hray_dist <= vray_dist {
+			draw_set_color(c_red);
+			//draw_line_width(x, y, hray_x, hray_y, 2);
+			
+			ray_x = hray_x;
+			ray_y = hray_y;
+			
+			ray_dist = hray_dist;
+			wall_color = c_red;
+			wall_shade = 0.5;
+		}
+	
+		if radian_ray_angle < 0 { radian_ray_angle += 2*pi; }
+		if radian_ray_angle > 2*pi { radian_ray_angle -= 2*pi; }
+		
+		
+		//Draw 3D Walls!
+		var camera_angle = degtorad(floor(direction)) - radian_ray_angle;
+		if camera_angle < 0 { camera_angle += 2*pi; }
+		if camera_angle > 2*pi { camera_angle -= 2*pi; }
+		ray_dist = floor(ray_dist*cos(camera_angle));
+		
+		//Depth
+		Depth[r] = ray_dist;
+		
+		
+		var line_w = camera_get_view_width(view_current)/vcone;
+		var line_h = 2400/(ray_dist/4);
+		var chunk_h = line_h/16; //how tall each segment is drawn from top to bottom
+		
+		var texture_y_offset = 0;
+		var texture_step = 32;
+		
+		var line_y = camera_get_view_height(view_current)*0.5;
+		//var line_offset = chunk_h;
+		
+		var texture = global.Texture1Wall;
+		var texture_y = texture_y_offset;
+		var texture_x = (ray_x)%32;
+		var texture_image = 0;
+		if wall_color = c_fuchsia { texture_x = (ray_y)%32; }
+		
+		//Get texture from SOLID
+		solid_hit = instance_place(ray_x, ray_y, obj_SOLID);
+		
+		if solid_hit != noone {
+			texture = solid_hit.sprite_texture;
+			texture_image = floor(solid_hit.image_index);
+			var solid_height = solid_hit.height;
+			var line_offset = chunk_h*solid_height;
+			
+			line_y -= line_h + line_h*(solid_height-1)*2; //Draws lines from top to bottom in chunks
+			
+			for (i=0; i<line_h*2*solid_height; i+=line_offset) {
+				var texel = texture_x+texture_y + (texture_image*1024);
+				
+				if texel >= 1024*(texture_image+1) { texel = 0; }
+				if texel < 0 { texel = 0; }
+				
+				if texture_y > 1024 { texture_y = 0; }
+			
+				wall_color = make_color_rgb(texture[texel][0] * wall_shade, texture[texel][1] * wall_shade, texture[texel][2] * wall_shade);
+				
+				draw_set_alpha(texture[texel][3]);
+				draw_line_width_color(r*line_w, i+line_y, r*line_w, i + line_y + line_offset, line_w, wall_color, wall_color);
+				draw_set_alpha(1);
+				
+				texture_y += 32;
+			}
+		}
+		else {
+			var texture = global.Texture1Wall;
+		}
+		
+		radian_ray_angle -= angle_diff;
+		
+	} //End of For Loop
+}
