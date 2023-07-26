@@ -1,0 +1,46 @@
+function scr_3DProjectionMatrix(_object){
+	with ( _object ) {
+	
+		//Temp variables
+		var sprite_x = x-obj_P.x;
+		var sprite_y = y-obj_P.y;
+		var sprite_z = z;
+
+		//Rotation around origin
+		var spr_cos = cos(degtorad(obj_P.image_angle));
+		var spr_sin = sin(degtorad(obj_P.image_angle));
+
+		var pos_x = sprite_y * spr_cos + sprite_x * spr_sin;
+		var pos_y = sprite_x * spr_cos - sprite_y * spr_sin;
+
+		sprite_x = pos_x;
+		sprite_y = pos_y;
+
+		//Convert to screen x and y
+		sprite_x = (sprite_x*90/sprite_y)+(50);
+		sprite_y = (sprite_z*90/sprite_y)+(30);
+	
+		var draw_xscale = 64/(pos_y*0.66) + other.zoom/100;
+		var draw_yscale = 64/(pos_y*0.66) + other.zoom/100;
+		
+		var draw_shade = 256 - distance_to_object(obj_P)/2;
+		draw_shade = clamp(draw_shade, 20, 255);
+	
+		for (i=0; i<sprite_width; i++) {
+			var draw_x = (sprite_x) - ( (sprite_width*0.1) * (64/pos_y) );
+			var draw_y = (sprite_y) - ( (sprite_height*0.2) * (64/pos_y) );
+			
+			var vcone_magic = other.vision_cone/100;
+		
+			if (pos_y > 0) //Don't draw mirrored
+			&& (draw_x > 0 && (draw_x)*vcone_magic < other.vision_cone) //If in view of camera
+			&& (pos_y < other.Depth[(draw_x)*vcone_magic]) //If not behind a wall
+				{
+			draw_sprite_part_ext(sprite_index, image_index, i, 0, 1, sprite_height, draw_x*8, draw_y*8, draw_xscale, draw_yscale, make_color_rgb(draw_shade, draw_shade, draw_shade), 1);
+				}
+			
+			sprite_x += 12/pos_y;
+		}
+	
+	}
+}
